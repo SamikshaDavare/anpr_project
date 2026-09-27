@@ -25,3 +25,4 @@ student_1/
 
 # Excel / generated reports
 *.xlsx
+outputs/
