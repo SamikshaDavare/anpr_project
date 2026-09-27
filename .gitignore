@@ -1,0 +1,27 @@
+﻿.venv/
+__pycache__/
+*.py[cod]
+*.pyd
+
+# IDE
+.vscode/
+.idea/
+
+# Python
+.pytest_cache/
+.mypy_cache/
+
+# ANPR generated files
+outputs/
+models/*.pt
+models/*.onnx
+
+# Local datasets
+student_1/
+
+# Temporary files
+*.tmp
+*.log
+
+# Excel / generated reports
+*.xlsx
