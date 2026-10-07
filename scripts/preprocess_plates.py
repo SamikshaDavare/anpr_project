@@ -1,44 +1,80 @@
 from pathlib import Path
-
 import cv2
 
+# ============================================================
+# PATHS
+# ============================================================
 
 INPUT_DIR = Path("outputs/plate_crops")
 OUTPUT_DIR = Path("outputs/preprocessed")
 
-MIN_HEIGHT = 100
-TARGET_HEIGHT = 100
+ORIGINAL_DIR = OUTPUT_DIR / "original"
+GRAYSCALE_DIR = OUTPUT_DIR / "grayscale"
+ENHANCED_DIR = OUTPUT_DIR / "enhanced"
+THRESHOLD_DIR = OUTPUT_DIR / "threshold"
 
+# ============================================================
+# SETTINGS
+# ============================================================
+
+MIN_HEIGHT = 100
+TARGET_HEIGHT = 150
+
+
+# ============================================================
+# PREPROCESSING
+# ============================================================
 
 def preprocess_image(image):
-    """
-    Create several preprocessing versions of a plate crop.
-    """
 
-    # Convert to grayscale
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    # --------------------------------------------------------
+    # 1. ORIGINAL
+    # --------------------------------------------------------
 
-    # Improve local contrast
-    clahe = cv2.createCLAHE(
-        clipLimit=2.0,
-        tileGridSize=(8, 8)
+    original = image.copy()
+
+    # --------------------------------------------------------
+    # 2. GRAYSCALE
+    # --------------------------------------------------------
+
+    gray = cv2.cvtColor(
+        image,
+        cv2.COLOR_BGR2GRAY
     )
-    enhanced = clahe.apply(gray)
 
-    # Upscale small plates
-    height, width = enhanced.shape
+    # --------------------------------------------------------
+    # 3. UPSCALE SMALL PLATES
+    # --------------------------------------------------------
+
+    height, width = gray.shape
 
     if height < MIN_HEIGHT:
+
         scale = TARGET_HEIGHT / height
+
         new_width = int(width * scale)
 
-        enhanced = cv2.resize(
-            enhanced,
+        gray = cv2.resize(
+            gray,
             (new_width, TARGET_HEIGHT),
             interpolation=cv2.INTER_CUBIC
         )
 
-    # Otsu threshold
+    # --------------------------------------------------------
+    # 4. CLAHE CONTRAST ENHANCEMENT
+    # --------------------------------------------------------
+
+    clahe = cv2.createCLAHE(
+        clipLimit=2.0,
+        tileGridSize=(8, 8)
+    )
+
+    enhanced = clahe.apply(gray)
+
+    # --------------------------------------------------------
+    # 5. OTSU THRESHOLD
+    # --------------------------------------------------------
+
     _, threshold = cv2.threshold(
         enhanced,
         0,
@@ -46,65 +82,116 @@ def preprocess_image(image):
         cv2.THRESH_BINARY + cv2.THRESH_OTSU
     )
 
-    return gray, enhanced, threshold
+    return (
+        original,
+        gray,
+        enhanced,
+        threshold
+    )
 
+
+# ============================================================
+# MAIN
+# ============================================================
 
 def main():
 
-    OUTPUT_DIR.joinpath("grayscale").mkdir(
-        parents=True,
-        exist_ok=True
-    )
+    for directory in [
+        ORIGINAL_DIR,
+        GRAYSCALE_DIR,
+        ENHANCED_DIR,
+        THRESHOLD_DIR
+    ]:
+        directory.mkdir(
+            parents=True,
+            exist_ok=True
+        )
 
-    OUTPUT_DIR.joinpath("enhanced").mkdir(
-        parents=True,
-        exist_ok=True
+    images = sorted(
+        INPUT_DIR.glob("*.jpg")
     )
-
-    OUTPUT_DIR.joinpath("threshold").mkdir(
-        parents=True,
-        exist_ok=True
-    )
-
-    images = list(INPUT_DIR.glob("*.jpg"))
 
     print("=" * 60)
-    print("PLATE PREPROCESSING")
+    print("ANPR PLATE PREPROCESSING")
     print("=" * 60)
+
     print(f"Input plates: {len(images)}")
+    print()
 
     processed = 0
 
-    for image_path in images:
+    for i, image_path in enumerate(images, 1):
 
-        image = cv2.imread(str(image_path))
+        print(
+            f"[{i}/{len(images)}] "
+            f"{image_path.name}"
+        )
+
+        image = cv2.imread(
+            str(image_path)
+        )
 
         if image is None:
-            print(f"WARNING: Could not read {image_path.name}")
+
+            print(
+                "   WARNING: Could not read image"
+            )
+
             continue
 
-        gray, enhanced, threshold = preprocess_image(image)
+        try:
 
-        filename = image_path.name
+            (
+                original,
+                gray,
+                enhanced,
+                threshold
+            ) = preprocess_image(image)
 
-        cv2.imwrite(
-            str(OUTPUT_DIR / "grayscale" / filename),
-            gray
-        )
+            filename = image_path.name
 
-        cv2.imwrite(
-            str(OUTPUT_DIR / "enhanced" / filename),
-            enhanced
-        )
+            cv2.imwrite(
+                str(ORIGINAL_DIR / filename),
+                original
+            )
 
-        cv2.imwrite(
-            str(OUTPUT_DIR / "threshold" / filename),
-            threshold
-        )
+            cv2.imwrite(
+                str(GRAYSCALE_DIR / filename),
+                gray
+            )
 
-        processed += 1
+            cv2.imwrite(
+                str(ENHANCED_DIR / filename),
+                enhanced
+            )
+
+            cv2.imwrite(
+                str(THRESHOLD_DIR / filename),
+                threshold
+            )
+
+            processed += 1
+
+        except Exception as e:
+
+            print(
+                f"   ERROR: {e}"
+            )
+
+    print()
+    print("=" * 60)
+    print("PREPROCESSING COMPLETE")
+    print("=" * 60)
 
     print(f"Processed: {processed}")
+
+    print()
+    print("Generated:")
+    print(f"  Original:  {ORIGINAL_DIR}")
+    print(f"  Grayscale: {GRAYSCALE_DIR}")
+    print(f"  Enhanced:  {ENHANCED_DIR}")
+    print(f"  Threshold: {THRESHOLD_DIR}")
+
     print("=" * 60)
 
 
